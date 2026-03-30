@@ -40,52 +40,50 @@
             const categories = ['ทั้งหมด', 'ทั่วไป', 'งาน', 'ส่วนตัว', 'สุขภาพ', 'การเงิน'];
             const priorities = ['ต่ำ', 'กลาง', 'สูง'];
 
-            // (1) Load Data from Google Apps Script Backend
+            const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwqIV4GTHXea8MpG4H3N6ya_U_gLG4baXyD-psFnBLnsLHfK6H39fmdn0iLO6Dw5zE/exec';
+
+            // (1) Load Data from Google Apps Script Backend via Fetch
             useEffect(() => {
-                const loadData = () => {
-                    if (typeof google !== 'undefined' && google.script && google.script.run) {
-                        google.script.run
-                            .withSuccessHandler((data) => {
-                                const formattedData = data.map(item => ({
-                                    ...item,
-                                    completed: item.completed === true || item.completed === 'true' || item.completed === 'TRUE',
-                                    subtasks: item.subtasks ? (typeof item.subtasks === 'string' ? JSON.parse(item.subtasks) : item.subtasks) : [],
-                                    isExpanded: false,
-                                    createdAt: item.id
-                                }));
-                                setTasks(formattedData);
-                                setLoading(false);
-                            })
-                            .withFailureHandler((error) => {
-                                console.error("Error loading from Google Sheets:", error);
-                                setLoading(false);
-                            })
-                            .getTasksData(); 
-                    } else {
-                        console.warn("Not running in Google Apps Script environment.");
-                        // For local testing if not in GAS
-                        setTimeout(() => setLoading(false), 1000);
+                const loadData = async () => {
+                    try {
+                        const response = await fetch(WEB_APP_URL);
+                        const data = await response.json();
+                        
+                        const formattedData = data.map(item => ({
+                            ...item,
+                            completed: item.completed === true || item.completed === 'true' || item.completed === 'TRUE',
+                            subtasks: item.subtasks ? (typeof item.subtasks === 'string' ? JSON.parse(item.subtasks) : item.subtasks) : [],
+                            isExpanded: false,
+                            createdAt: item.id
+                        }));
+                        setTasks(formattedData);
+                        setLoading(false);
+                    } catch (error) {
+                        console.error("Error loading from Google Sheets:", error);
+                        setLoading(false);
                     }
                 };
 
                 loadData();
             }, []);
 
-            // (2) Save Data to Google Apps Script Backend
-            const saveToSheets = useCallback((newTasks) => {
+            // (2) Save Data to Google Apps Script Backend via Fetch
+            const saveToSheets = useCallback(async (newTasks) => {
                 setTasks(newTasks);
-                
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    setSaving(true);
-                    google.script.run
-                        .withSuccessHandler(() => {
-                            setSaving(false);
-                        })
-                        .withFailureHandler((error) => {
-                            console.error("Error saving to Sheets:", error);
-                            setSaving(false);
-                        })
-                        .saveTasksData(JSON.stringify(newTasks));
+                setSaving(true);
+                try {
+                    await fetch(WEB_APP_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8',
+                        },
+                        body: JSON.stringify(newTasks)
+                    });
+                } catch (error) {
+                    console.error("Error saving to Sheets:", error);
+                } finally {
+                    setSaving(false);
                 }
             }, []);
 
